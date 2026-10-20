@@ -41,17 +41,17 @@ Imported files occupy additional device storage. Removing a book from the librar
 
 ## Build an APK
 
-Configure the Android SDK, then build a standalone debug APK from PowerShell:
+Configure the Android SDK, then build the installable ARM64 release-variant APK from PowerShell:
 
 ```powershell
 $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
 npx expo prebuild --platform android
 Push-Location android
-.\gradlew.bat app:assembleDebug
+.\gradlew.bat app:assembleRelease -PreactNativeArchitectures=arm64-v8a
 Pop-Location
 ```
 
-The installable APK is `android\app\build\outputs\apk\debug\app-debug.apk`. Install it by copying it to your Android device and opening it, or with `adb install -r android\app\build\outputs\apk\debug\app-debug.apk`.
+The installable APK is `android\app\build\outputs\apk\release\app-release.apk`. Install it by copying it to your Android device and opening it, or with `adb install -r android\app\build\outputs\apk\release\app-release.apk`. This release build is signed with the local Android debug key for sideloading. Use a private release keystore for production distribution.
 
-Storyroom's launcher artwork is in `assets\icon.png`; the adaptive Android foreground and monochrome artwork are in `assets\android-icon-foreground.png` and `assets\android-icon-monochrome.png`. Regenerate the native project after changing these assets or `app.json`.
+Storyroom's launcher artwork is in `assets\icon.png`; the adaptive Android foreground and monochrome artwork are in `assets\android-icon-foreground.png` and `assets\android-icon-monochrome.png`. Regenerate the native project after changing these assets or `app.json`. Increment `expo.android.versionCode` when preparing an APK to install as an update.

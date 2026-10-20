@@ -113,6 +113,7 @@ export default function App() {
   const [editTitle, setEditTitle] = useState('');
   const [editAuthor, setEditAuthor] = useState('');
   const [loading, setLoading] = useState(true);
+  const [libraryRetry, setLibraryRetry] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const currentBook = books.find((book) => book.id === currentId) ?? null;
@@ -143,13 +144,19 @@ export default function App() {
       } catch (loadError) {
         console.error('Could not open the audiobook library', loadError);
         setError(`Could not open the library: ${errorMessage(loadError)}`);
-        if (database) await database.closeAsync();
+        if (database) {
+          try {
+            await database.closeAsync();
+          } catch (closeError) {
+            console.error('Could not close the audiobook library after loading failed', closeError);
+          }
+        }
       } finally {
         if (mounted) setLoading(false);
       }
     })();
     return () => { mounted = false; };
-  }, [player]);
+  }, [libraryRetry, player]);
 
   useEffect(() => {
     void setAudioModeAsync({
@@ -605,6 +612,18 @@ export default function App() {
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
+          {!db ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setError(null);
+                setLoading(true);
+                setLibraryRetry((attempt) => attempt + 1);
+              }}
+            >
+              <Text style={styles.errorRetry}>Retry</Text>
+            </Pressable>
+          ) : null}
           <Pressable accessibilityLabel="Dismiss error" onPress={() => setError(null)}><Text style={styles.errorDismiss}>×</Text></Pressable>
         </View>
       ) : null}
@@ -620,7 +639,10 @@ export default function App() {
         ) : (
           <View style={styles.pageHeader}>
             <Text style={styles.pageEyebrow}>YOUR STORYROOM</Text>
-            <Text style={styles.pageTitle}>{modeLabel(mode)}</Text>
+            <View style={styles.pageTitleRow}>
+              <Text style={styles.pageTitle}>{modeLabel(mode)}</Text>
+              <Text style={styles.count}>{visibleBooks.length}</Text>
+            </View>
             <Text style={styles.pageDescription}>
               {mode === 'recent' && 'Pick up where you left off.'}
               {mode === 'bookmarks' && 'Your saved listening moments.'}
@@ -630,10 +652,12 @@ export default function App() {
         )}
 
         <View style={styles.libraryHeading}>
-          <View style={styles.headingRow}>
-            <Text style={styles.sectionTitle}>{mode === 'all' ? 'Your library' : modeLabel(mode)}</Text>
-            <Text style={styles.count}>{visibleBooks.length}</Text>
-          </View>
+          {mode === 'all' ? (
+            <View style={styles.headingRow}>
+              <Text style={styles.sectionTitle}>Your library</Text>
+              <Text style={styles.count}>{visibleBooks.length}</Text>
+            </View>
+          ) : null}
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -842,6 +866,7 @@ const styles = StyleSheet.create({
   runtimeNoticeText: { color: '#c7d3b6', fontSize: 11, lineHeight: 16 },
   errorBanner: { marginHorizontal: 16, marginBottom: 10, padding: 12, backgroundColor: '#482d2b', borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
   errorText: { flex: 1, color: '#ffd5c9', fontSize: 12 },
+  errorRetry: { color: '#f2eddf', fontSize: 12, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 6 },
   errorDismiss: { color: '#ffd5c9', fontSize: 22, paddingHorizontal: 6 },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 22 },
@@ -854,6 +879,7 @@ const styles = StyleSheet.create({
   heroGlyph: { fontSize: 74, color: '#a6b785', opacity: 0.78 },
   pageHeader: { paddingTop: 10, paddingBottom: 20 },
   pageEyebrow: { color: '#a6b785', fontSize: 9, letterSpacing: 1.4, fontWeight: '800' },
+  pageTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   pageTitle: { color: '#f1eddf', fontSize: 27, lineHeight: 33, fontWeight: '700', marginTop: 8 },
   pageDescription: { color: '#a1a694', fontSize: 13, marginTop: 5 },
   libraryHeading: { marginBottom: 13 },

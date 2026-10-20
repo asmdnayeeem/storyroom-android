@@ -2,7 +2,7 @@
   "expo": {
     "name": "Storyroom",
     "slug": "storyroom-audiobook-player",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "platforms": [
       "android"
@@ -11,8 +11,9 @@
     "userInterfaceStyle": "dark",
     "android": {
       "package": "com.storyroom.audiobookplayer",
+      "versionCode": 2,
       "adaptiveIcon": {
-        "backgroundColor": "#10172B",
+        "backgroundColor": "#3510CC",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },

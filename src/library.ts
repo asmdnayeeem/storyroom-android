@@ -36,29 +36,38 @@ type BookRow = {
 };
 
 export async function openLibrary(): Promise<SQLite.SQLiteDatabase> {
-  const db = await SQLite.openDatabaseAsync('storyroom.db');
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    CREATE TABLE IF NOT EXISTS books (
-      id TEXT PRIMARY KEY NOT NULL,
-      uri TEXT NOT NULL,
-      source_uri TEXT NOT NULL,
-      title TEXT NOT NULL,
-      author TEXT NOT NULL DEFAULT '',
-      cover_uri TEXT,
-      duration REAL NOT NULL DEFAULT 0,
-      position REAL NOT NULL DEFAULT 0,
-      last_played INTEGER NOT NULL DEFAULT 0,
-      added_at INTEGER NOT NULL,
-      bookmarks TEXT NOT NULL DEFAULT '[]',
-      chapters TEXT NOT NULL DEFAULT '[]'
-    );
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY NOT NULL,
-      value TEXT NOT NULL
-    );
-  `);
-  return db;
+  const db = await SQLite.openDatabaseAsync('storyroom.db', { useNewConnection: true });
+  try {
+    await db.execAsync(`
+      PRAGMA journal_mode = WAL;
+      CREATE TABLE IF NOT EXISTS books (
+        id TEXT PRIMARY KEY NOT NULL,
+        uri TEXT NOT NULL,
+        source_uri TEXT NOT NULL,
+        title TEXT NOT NULL,
+        author TEXT NOT NULL DEFAULT '',
+        cover_uri TEXT,
+        duration REAL NOT NULL DEFAULT 0,
+        position REAL NOT NULL DEFAULT 0,
+        last_played INTEGER NOT NULL DEFAULT 0,
+        added_at INTEGER NOT NULL,
+        bookmarks TEXT NOT NULL DEFAULT '[]',
+        chapters TEXT NOT NULL DEFAULT '[]'
+      );
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+      );
+    `);
+    return db;
+  } catch (error) {
+    try {
+      await db.closeAsync();
+    } catch (closeError) {
+      console.error('Could not close the database after initialization failed', closeError);
+    }
+    throw error;
+  }
 }
 
 export async function readBooks(db: SQLite.SQLiteDatabase): Promise<Book[]> {
