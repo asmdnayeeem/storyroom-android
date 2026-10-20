@@ -7,6 +7,7 @@ import * as SQLite from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   ActivityIndicator,
   Alert,
   Image,
@@ -120,6 +121,8 @@ export default function App() {
   const lastSavedAt = useRef(0);
   const pendingSeek = useRef<number | null>(null);
   const handledFinish = useRef(false);
+  const playbackSnapshot = useRef({ db, book: currentBook, position: status.currentTime, isLoaded: status.isLoaded });
+  playbackSnapshot.current = { db, book: currentBook, position: status.currentTime, isLoaded: status.isLoaded };
 
   useEffect(() => {
     let mounted = true;
@@ -127,10 +130,11 @@ export default function App() {
       let database: SQLite.SQLiteDatabase | null = null;
       try {
         database = await openLibrary();
-        const [storedBooks, storedQueue, settings] = await Promise.all([
+        const [storedBooks, storedQueue, settings, lastBookId] = await Promise.all([
           readBooks(database),
           readSetting<string[]>(database, 'queue', []),
           readSetting<Settings>(database, 'settings', { speed: 1 }),
+          readSetting<string | null>(database, 'lastBookId', null),
         ]);
         if (!mounted) {
           await database.closeAsync();
@@ -141,6 +145,18 @@ export default function App() {
         setQueue(storedQueue.filter((id) => storedBooks.some((book) => book.id === id)));
         setSpeed(settings.speed);
         player.setPlaybackRate(settings.speed);
+        const lastBook = storedBooks.find((book) => book.id === lastBookId)
+          ?? storedBooks.filter((book) => book.lastPlayed > 0).sort((a, b) => b.lastPlayed - a.lastPlayed)[0];
+        if (lastBook) {
+          pendingSeek.current = lastBook.position > 0 ? lastBook.position : null;
+          setCurrentId(lastBook.id);
+          try {
+            player.replace({ uri: lastBook.uri, name: lastBook.title });
+          } catch (restoreError) {
+            console.error(`Could not restore ${lastBook.title} in the player`, restoreError);
+            setError(`Could not restore the previous audiobook: ${errorMessage(restoreError)}`);
+          }
+        }
       } catch (loadError) {
         console.error('Could not open the audiobook library', loadError);
         setError(`Could not open the library: ${errorMessage(loadError)}`);
@@ -157,6 +173,20 @@ export default function App() {
     })();
     return () => { mounted = false; };
   }, [libraryRetry, player]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') return;
+      const { db: activeDb, book, position, isLoaded } = playbackSnapshot.current;
+      if (!activeDb || !book || !isLoaded) return;
+      const updated = { ...book, position };
+      void saveBook(activeDb, updated).catch((saveError: unknown) => {
+        console.error('Could not save playback progress when leaving the app', saveError);
+        setError(`Could not save playback progress: ${errorMessage(saveError)}`);
+      });
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     void setAudioModeAsync({
@@ -382,7 +412,15 @@ export default function App() {
       player.play();
       const updated = { ...book, lastPlayed: Date.now() };
       setBooks((items) => items.map((item) => item.id === updated.id ? updated : item));
-      if (db) await saveBook(db, updated);
+      if (db) {
+        try {
+          await saveBook(db, updated);
+          await writeSetting(db, 'lastBookId', updated.id);
+        } catch (saveError) {
+          console.error(`Could not save ${updated.title} as the last played audiobook`, saveError);
+          setError(`Playback started, but the last played audiobook could not be saved: ${errorMessage(saveError)}`);
+        }
+      }
       if (queue.includes(book.id)) await persistQueue(queue.filter((id) => id !== book.id));
       if (supportsNativePlaybackService) {
         player.setActiveForLockScreen(true, {
@@ -511,6 +549,7 @@ export default function App() {
                   player.replace(null);
                   if (supportsNativePlaybackService) player.clearLockScreenControls();
                   setCurrentId(null);
+                  await writeSetting(db, 'lastBookId', null);
                 }
               } catch (removeError) {
                 console.error('Could not remove audiobook', removeError);
@@ -880,12 +919,12 @@ const styles = StyleSheet.create({
   pageHeader: { paddingTop: 10, paddingBottom: 20 },
   pageEyebrow: { color: '#a6b785', fontSize: 9, letterSpacing: 1.4, fontWeight: '800' },
   pageTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pageTitle: { color: '#f1eddf', fontSize: 27, lineHeight: 33, fontWeight: '700', marginTop: 8 },
+  pageTitle: { color: '#f1eddf', fontSize: 21, lineHeight: 33, fontWeight: '700', marginTop: 0 },
   pageDescription: { color: '#a1a694', fontSize: 13, marginTop: 5 },
   libraryHeading: { marginBottom: 13 },
   headingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 9 },
   sectionTitle: { color: '#f2eddf', fontSize: 21, fontWeight: '700' },
-  count: { color: '#b8c5a0', backgroundColor: '#30382b', overflow: 'hidden', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, fontSize: 12 },
+  count: { color: '#b8c5a0', backgroundColor: '#30382b', overflow: 'hidden', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, fontSize: 12, includeFontPadding: false, textAlignVertical: 'center', transform: [{ translateY: 1 }] },
   search: { backgroundColor: '#232822', borderColor: '#343b32', borderWidth: 1, borderRadius: 13, paddingHorizontal: 15, paddingVertical: 11, color: '#eee9dd', fontSize: 14 },
   sortRow: { gap: 8, paddingVertical: 11 },
   filterChip: { borderWidth: 1, borderColor: '#343b32', paddingHorizontal: 11, paddingVertical: 7, borderRadius: 16 },

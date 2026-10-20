@@ -54,4 +54,4 @@ Pop-Location
 
 The installable APK is `android\app\build\outputs\apk\release\app-release.apk`. Install it by copying it to your Android device and opening it, or with `adb install -r android\app\build\outputs\apk\release\app-release.apk`. This release build is signed with the local Android debug key for sideloading. Use a private release keystore for production distribution.
 
-Storyroom's launcher artwork is in `assets\icon.png`; the adaptive Android foreground and monochrome artwork are in `assets\android-icon-foreground.png` and `assets\android-icon-monochrome.png`. Regenerate the native project after changing these assets or `app.json`. Increment `expo.android.versionCode` when preparing an APK to install as an update.
+Storyroom's full-bleed launcher artwork is in `assets\icon.png`; the adaptive Android foreground and monochrome artwork are inset to stay inside launcher safe margins in `assets\android-icon-foreground.png` and `assets\android-icon-monochrome.png`. Regenerate the native project after changing these assets or `app.json`. Increment `expo.android.versionCode` when preparing an APK to install as an update.
